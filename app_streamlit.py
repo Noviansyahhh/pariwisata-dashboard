@@ -2,8 +2,93 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from config import engine
 import sqlite3
+import os
+from sqlalchemy import create_engine
+from dotenv import load_dotenv
+
+# Load environment variables dari .env
+load_dotenv()
+
+# ====================================================
+# KONFIGURASI DATABASE
+# ====================================================
+# Menggunakan st.secrets untuk Streamlit Cloud atau environment variables
+try:
+    DATABASE_URL = None
+    
+    # Priority 1: Streamlit secrets (untuk Streamlit Cloud)
+    try:
+        DATABASE_URL = st.secrets.get("DATABASE_URL", None)
+        if DATABASE_URL:
+            print("✅ Using DATABASE_URL from Streamlit secrets")
+    except:
+        pass
+    
+    # Priority 2: SUPABASE_DATABASE_URL dari environment
+    if not DATABASE_URL:
+        DATABASE_URL = os.getenv('SUPABASE_DATABASE_URL')
+        if DATABASE_URL:
+            print("✅ Using SUPABASE_DATABASE_URL from environment")
+    
+    # Priority 3: DATABASE_URL dari environment
+    if not DATABASE_URL:
+        DATABASE_URL = os.getenv('DATABASE_URL')
+        if DATABASE_URL:
+            print("✅ Using DATABASE_URL from environment")
+    
+    # Priority 4: Build dari component terpisah
+    if not DATABASE_URL:
+        # Coba dari Streamlit secrets terlebih dahulu
+        try:
+            SUPABASE_HOST = st.secrets.get('SUPABASE_DB_HOST', None)
+            SUPABASE_USER = st.secrets.get('SUPABASE_DB_USER', None)
+            SUPABASE_PASSWORD = st.secrets.get('SUPABASE_DB_PASSWORD', None)
+            SUPABASE_DATABASE = st.secrets.get('SUPABASE_DB_NAME', None)
+            SUPABASE_PORT = st.secrets.get('SUPABASE_DB_PORT', None)
+        except:
+            SUPABASE_HOST = None
+            SUPABASE_USER = None
+            SUPABASE_PASSWORD = None
+            SUPABASE_DATABASE = None
+            SUPABASE_PORT = None
+        
+        # Fallback ke environment variables
+        if not SUPABASE_HOST:
+            SUPABASE_HOST = os.getenv('SUPABASE_DB_HOST') or os.getenv('SUPABASE_HOST', 'localhost')
+        if not SUPABASE_USER:
+            SUPABASE_USER = os.getenv('SUPABASE_DB_USER') or os.getenv('SUPABASE_USER', 'postgres')
+        if not SUPABASE_PASSWORD:
+            SUPABASE_PASSWORD = os.getenv('SUPABASE_DB_PASSWORD') or os.getenv('SUPABASE_PASSWORD', 'postgres')
+        if not SUPABASE_DATABASE:
+            SUPABASE_DATABASE = os.getenv('SUPABASE_DB_NAME') or os.getenv('SUPABASE_DATABASE', 'postgres')
+        if not SUPABASE_PORT:
+            SUPABASE_PORT = os.getenv('SUPABASE_DB_PORT') or os.getenv('SUPABASE_PORT', '5432')
+        
+        DATABASE_URL = f"postgresql://{SUPABASE_USER}:{SUPABASE_PASSWORD}@{SUPABASE_HOST}:{SUPABASE_PORT}/{SUPABASE_DATABASE}"
+        print(f"✅ Built DATABASE_URL from components: {SUPABASE_HOST}:{SUPABASE_PORT}")
+    
+    # Debug: Show connection info (hide password)
+    if DATABASE_URL:
+        safe_url = DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'unknown'
+        print(f"🔗 Connecting to: {safe_url}")
+    
+    # Membuat Engine
+    engine = create_engine(
+        DATABASE_URL, 
+        echo=False,
+        pool_pre_ping=True,
+        connect_args={
+            "connect_timeout": 10,
+            "sslmode": "require" if "supabase" in DATABASE_URL else "disable"
+        }
+    )
+    print("✅ Database engine created successfully")
+    
+except Exception as e:
+    st.error(f"❌ Error konfigurasi database: {e}")
+    print(f"❌ Database configuration error: {e}")
+    engine = None
 
 # ====================================================
 # KONFIGURASI STREAMLIT
